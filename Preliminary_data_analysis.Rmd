@@ -1,0 +1,49 @@
+---
+title: "Preliminary_data"
+author: "Astrid L."
+date: "12/11/2018"
+output: html_document
+---
+
+#Setting wd, and loading data
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+getwd()
+locpath= getwd()
+setwd(locpath)
+
+library(pacman)
+#p_load(ggplot2, rethinking, readxl, brms, metafor, tidyverse, lme4, Rstan)
+p_load(ggplot2, tidyverse, lme4, dplyr, lmerTest)
+
+d = read.csv("~/Desktop/Bachelor/BA_EXP/W3 - imit_inhib/data/II_1234.csv")
+d_IRI = read.csv("~/Desktop/Bachelor/BA_EXP/IRI_data/data.csv")
+
+```
+
+Cleaning out irrelevant columns
+```{r}
+d_IRI <- subset(d_IRI, select=c("participant", ))
+
+
+```
+
+
+#Adding RME score to IRI data
+```{r}
+# making a new variable in IRI data and assigning a string of scores to it
+d_IRI$SS <- c(32)
+
+```
+
+
+```{r}
+
+```
+
+
+
+
+

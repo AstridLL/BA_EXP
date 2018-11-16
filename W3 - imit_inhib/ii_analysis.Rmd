@@ -1,0 +1,74 @@
+---
+title: "II_exp"
+author: "Me"
+date: "14/2/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(pacman)
+p_load(data.table,dplyr,dtplyr,effects,ggplot2,lmerTest,MuMIn)
+
+files <- list.files(path = "/Users/SergioGlez/Dropbox/2017_SocCult/imit_inhib/data/",pattern = ".csv")
+setwd("/Users/SergioGlez/Dropbox/2017_SocCult/imit_inhib/data/")
+temp <- lapply(files, fread, sep=",")
+all_ii <- rbindlist( temp )
+
+all_ii$Participant <-factor(all_ii$Participant) #change variable into factor
+all_ii$Congruity <-factor(all_ii$Congruity) #change variable into factor
+all_ii$Response <-factor(all_ii$Response) #change variable into factor
+all_ii$Participant <-factor(all_ii$Participant) #change variable into factor
+all_ii$Order_number <-factor(all_ii$Order_number) #change variable into factor
+all_ii$Finger_Screen <-factor(all_ii$Finger_Screen) #change variable into factor
+
+# all_ii$Reaction_time[all_ii$Reaction_time < 0] = 'nan'
+  
+#checking responses
+for (p in unique(all_ii$Participant)){
+  if (sum(all_ii$Correctness[all_ii$Participant == p]) < 50){
+    all_ii$Correctness[all_ii$Correctness==1 & all_ii$Participant == p]=0
+    all_ii$Correctness[all_ii$Correctness==0 & all_ii$Participant == p]=1
+  }
+}
+write.csv(all_ii, file = "all_ii.csv")
+
+all_ii$Correctness_fac <-factor(all_ii$Correctness) #change variable into factor
+
+#check RT
+rt = ggplot(all_ii,aes(Reaction_time))+geom_density()
+print(rt)
+#log transform
+all_ii$RTlog=log(all_ii$Reaction_time)
+rtlog = ggplot(all_ii,aes(RTlog))+geom_density()
+print(rtlog)
+
+#group by correctness 
+all_correctness = all_ii %>%
+  group_by(Participant, Congruity,Order_number) %>%
+  summarise(Number_correct=sum(Correctness))
+
+model1=glmer(Number_correct~Congruity+(1+Congruity|Participant)+(1+Congruity|Order_number),family=poisson,all_correctness)
+#model1=glmer(Number_correct~Congruity+(1|Participant)+(1|Order_number),family=poisson,all_correctness)
+
+model1_2 = glmer(Correctness_fac~Congruity+(1+Congruity|Participant)+(1+Congruity|Order_number),family =binomial,all_ii)
+print('results for the effect on accuracy')
+summary(model1_2)
+# summary(model1)
+
+# model2=lmer(Reaction_time~Congruity+(1+Congruity|Participant)+(1+Congruity|Order_number),all_ii,REML=F)
+# print('results for the effect on reaction_time')
+# summary(model2)
+all_ii$V2=all_ii$V1^2
+all_ii$V1_scaled=scale(all_ii$V1)
+all_ii$V2_scaled=scale(all_ii$V2)
+all_ii=subset(all_ii,Reaction_time>0.15)
+model3=lmer(Reaction_time~Congruity+V1_scaled+(1+Congruity+Order_number|Participant)+(1+Congruity|Order_number),all_ii,REML=F)
+print('results for the effect on reaction_time (log)')
+summary(model3)
+simulationOutput <- simulateResiduals(fittedModel = model3, n = 250)
+
+boxplot(RTlog ~ Congruity, main="results for the effect on reaction_time (log)",all_ii)
+
+boxplot(Reaction_time ~ Congruity, main="results for the effect on reaction_time",all_ii)
+```
+
