@@ -18,19 +18,15 @@ library(pacman)
 #p_load(ggplot2, rethinking, readxl, brms, metafor, tidyverse, lme4, Rstan)
 p_load(ggplot2, tidyverse, lme4, dplyr, lmerTest, data.table, dtplyr, effects, MuMin)
 
-
-files <- list.files(path = "~/Desktop/Bachelor/BA_EXP/W3 - imit_inhib/data/",pattern = ".csv")
-setwd("~/Desktop/Bachelor/BA_EXP/W3 - imit_inhib/data/")
-temp <- lapply(files, fread, sep=",")
-all_ii <- rbindlist( temp )
-
-#d = read.csv("~/Desktop/Bachelor/BA_EXP/W3 - imit_inhib/data/II_1.csv")
-d_IRI = read.csv("~/Desktop/Bachelor/BA_EXP/IRI_data/data-9/data.csv", header = TRUE, row.names=NULL)
-
 ```
 
-Cleaning out irrelevant columns
+# First we will clena the IRI data (and add gender and SS score, fix p1 data, etc.)
 ```{r}
+
+# reading data
+d_IRI = read.csv("~/Desktop/Bachelor/BA_EXP/IRI_data/data-11/data.csv", header = TRUE, row.names=NULL)
+
+# Cleaning out irrelevant columns
 colnames(d_IRI) <- colnames(d_IRI[2:38])
 
 d_IRI <- subset(d_IRI, select=c("ID.1", "score_FS.1", "score_EC.1","score_PT.1", "score_PD.1"))
@@ -43,39 +39,36 @@ d_IRI <- rbind(d_IRI, c(1,23, 22, 23, 11))
 # the rownumbers seems wrong so to make sure it doesn't give me problems I will make a new df with the variables
 d_IRI <- data.frame(d_IRI$ID.1, d_IRI$score_FS.1, d_IRI$score_EC.1, d_IRI$score_PT.1, d_IRI$score_PD.1)
 
-```
-
-
-#Adding RME score to IRI data
-```{r}
+#Adding RME score and gender to IRI data
 # first I have to order the data by ID to make it fit with the column/values I want to add
 d_IRI <- d_IRI[order(d_IRI$d_IRI.ID.1),]
 # making a new variable in IRI data and assigning a string of values to it
-d_IRI$SS <- c(29, 33, 31, 25, 33, 27, 27, 29, 25, 27, 32, 27, 30, 28, 31)
+d_IRI$SS <- c(29, 33, 31, 25, 33, 27, 27, 29, 25, 27, 32, 27, 30, 28, 31, 25, 28, 29, 30, 28, 28, 33, 32, 32, 28, 28)
+d_IRI$Gender <- c(1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0) # null = female, 1 = male
+d_IRI$Age <- c(22, 23, 19, 24, 23, 26, 22, 26, 23, 25, 22, 20, 21, 21, 22, 25, 23, 22, 19, 21, 25, 24, 20, 23, 23, 20)
 
-```
-
-# Merge the two datasets 
-
-```{r}
+# change variable names
 names(d_IRI)[names(d_IRI) == "d_IRI.ID.1"] <- "Participant"
 names(d_IRI)[names(d_IRI) == "d_IRI.score_FS.1"] <- "FS"
 names(d_IRI)[names(d_IRI) == "d_IRI.score_EC.1"] <- "EC"
 names(d_IRI)[names(d_IRI) == "d_IRI.score_PT.1"] <- "PT"
 names(d_IRI)[names(d_IRI) == "d_IRI.score_PD.1"] <- "PD"
 
-
+# write into csv file
 setwd("~/Desktop/Bachelor/BA_EXP/")
 write.csv(d_IRI, file = "d_IRI.csv", row.names=FALSE)
-
-#d <- merge(all_ii,d_IRI,by="Participant")
-
 ```
 
+# Now we will clean the imit task data
 
-# NOW: STUFF THAT I AM NOT SO SURE ABOUT
 ```{r}
-# should I remove negative RTs
+# making a string of the filenames and binding the files together by row (I think?:-) )
+files <- list.files(path = "~/Desktop/Bachelor/BA_EXP/W3 - imit_inhib/data/",pattern = ".csv")
+setwd("~/Desktop/Bachelor/BA_EXP/W3 - imit_inhib/data/")
+temp <- lapply(files, fread, sep=",")
+all_ii <- rbindlist( temp )
+
+# should I remove negative RTs  ?
 #d$Reaction_time[d$Reaction_time < 0] = 'nan'
 
 # maybe turn my variables into factors???
@@ -95,9 +88,19 @@ for (p in unique(all_ii$Participant)){
   }
 }
 
+setwd("~/Desktop/Bachelor/BA_EXP/")
 write.csv(all_ii, file = "all_ii_new.csv", row.names=FALSE)
 
+# should I????????
 all_ii$Correctness_fac <-factor(all_ii$Correctness) #change variable into factor
+
+```
+
+
+# NOW: STUFF THAT I AM NOT SO SURE ABOUT
+```{r}
+
+
 
 
 ```
@@ -180,4 +183,20 @@ summary(m)
 m9 = lmer(Condition ~ 1 + FS + EC + PT + PD + SS + (1 + V1|Participant), data = d)
 summary(m9)
 ```
+
+TO DO 
+Define hypotheses / Describe variables
+- Identify your model (outcome, likelihood function, predictors)
+- Identify submodels for comparison
+Define and motivate your priors 
+- (predictive prior distribution?)
+Assess model quality
+- WAIC comparison
+- Estimate comparison
+- Predictive posterior
+Report results
+- Estimates and estimate interpretation
+- Make sure to deal cautiously with interactions (e.g. plot!)
+Compare current state of knowledge with previous
+- E.g. prior vs. Posterior estimates
 

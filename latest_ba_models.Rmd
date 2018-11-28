@@ -1,0 +1,134 @@
+---
+title: "latest_ba_models"
+author: "Astrid L."
+date: "28/11/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+# install.packages("nloptr")
+# add this argument:
+# control=glmerControl(optimizer="nloptwrap2"))
+
+getwd()
+locpath= getwd()
+setwd(locpath)
+
+library(pacman)
+#p_load(ggplot2, rethinking, readxl, brms, metafor, tidyverse, lme4, Rstan)
+p_load(ggplot2, tidyverse, lme4, dplyr, lmerTest, data.table, dtplyr, effects, MuMin, plyr)
+
+d_s <- read.csv("~/Desktop/Bachelor/BA_EXP/d_s.csv", header = TRUE) # scaled variables
+d <- read.csv("~/Desktop/Bachelor/BA_EXP/d.csv", header = TRUE) # original variables
+# d_all <- read.csv("~/Desktop/Bachelor/BA_EXP/d_all.csv", header =  TRUE) # both
+
+# updating dataset
+d_s <- subset(d_s, select = -c(Correctness))
+d_s$Condition <- relevel(d_s$Condition, "IT")
+
+str(d_s)
+d_s$Congruity = as.character(d$Congruity)
+d_incongruent_s <- subset(d_s, d_s$Congruity == "No")
+d_s$Congruity = as.factor(d_s$Congruity)
+str(d_incongruent_s)
+
+```
+
+
+# Descriptive data
+```{r}
+mean(d$Age)
+sd(d$Age)
+```
+
+
+# Visualizing data
+```{r}
+
+rt = ggplot(d_s,aes(Reaction_time))+geom_density()
+rt = ggplot(d,aes(Reaction_time))+geom_density()
+rt
+
+# Boxplot
+# Effect of condition and congruity on reacion times
+a <- ggplot(data=d_s, aes(x = Condition, y = Reaction_time, colour = d_s$Congruity)) +
+  geom_boxplot() +
+  labs(title = "Effect of condition and congruity on reacion times", x = "Condition", y = "Scaled RTs", colour = "Congruity")
+a
+
+# condition and congruity switched around 
+a_1 <- ggplot(data=d_s, aes(x = Congruity, y = Reaction_time, colour = d_s$Condition)) +
+   geom_boxplot() +
+   labs(title = "Effect of congruity and condition on reacion times", x = "Congruity", y = "Scaled RTs", colour = "Condition")
+a_1
+
+# barplot
+# Effect of condition and congruity on reacion times
+b <- ggplot(data=d_s, aes(x = Condition, y = Reaction_time, colour = d_s$Congruity)) +
+  geom_bar() +
+  labs(title = "Effect of condition and congruity on reacion times", x = "Condition", y = "Scaled RTs", colour = "Congruity")
+b
+
+```
+
+Hypotheses 
+
+# H1:  Imitation inhibition training improve performance on a subsequent cued control task
+	P1 – Following the hypothesis 1, I predict to observe lower RTs on incongruent trials for participants in the imitation inhibition condition, giving rise to an interaction effect between condition and congruency.
+
+# H2:  Imitation inhibition training improve subsequent measures of social cognition
+Hypothesis 2 motivates two complementary predictions:
+	P2 – Subscale scores on the Interpersonal Reactivity Index are predictive of condition, with higher scores in the imitation inhibition condition.
+	P3 – Social sensitivity scores from Reading the Mind in the Eyes Test (RMET) are predictive of condition, with higher scores in the imitation inhibition condition.
+
+# Planned exploratory analyses	
+-	EA1 Explore the interaction effect between RTs on incongruent trials and specific subscales of the Interpersonal Reactivity Index.  (scatterplot)
+-	EA2 Explore model including all measured variables of social cognition to see if they account for orthogonal variance
+
+
+```{r}
+## H1:  Imitation inhibition training improve performance on a subsequent cued control task
+
+# P1 – Following the hypothesis 1, I predict to observe lower RTs on incongruent trials for participants in the imitation inhibition condition, giving rise to an interaction effect between condition and congruency.
+m1 = glmer(Reaction_time ~ Condition + Congruity + Condition*Congruity + (1|Participant) + (1|Item), family=gaussian(link=log), data = d)
+summary(m1)
+qqnorm(residuals(m1))
+dpois
+# Visualization
+ggplot(d, aes(Condition, Reaction_time, fill = Congruity)) + 
+  geom_bar(stat = "summary", fun.y = mean, position = "dodge", width = 0.6) + 
+  geom_errorbar(stat = "summary", fun.data = mean_se, position = "dodge", width = 0.4)
+
+#m1.2 = lmer(log(Reaction_time) ~ Condition + Congruity + Condition*Congruity + (1|Participant) + (1|Item), data = d, REML = FALSE)
+#summary(m1.2)
+#qqnorm(residuals(m1.2))
+
+## H2:  Imitation inhibition training improve subsequent measures of social cognition
+#(Hypothesis 2 motivates two complementary predictions:)
+
+# P2 – Subscale scores on the Interpersonal Reactivity Index are predictive of condition, with higher scores in the imitation inhibition condition. 
+m2 = glmer(Condition ~ 1 + FS_s + EC_s + PT_s + PD_s + (1|Participant), family=binomial, data=d)
+summary(m2)
+
+
+# P3 – Social sensitivity scores from Reading the Mind in the Eyes Test (RMET) are predictive of condition, with higher scores in the imitation inhibition condition.
+m3 = glmer(Condition ~ 1 + SS_s + (1|Participant), family=binomial, data=d)
+summary(m3)
+
+## Planned exploratory analyses	
+# EA1 Explore the interaction effect between RTs on incongruent trials and specific subscales of the Interpersonal Reactivity Index.  (scatterplot) (choose congruent/incongruent only??)
+ea1 = glmer(Condition ~ 1 + RT_s + EC_s + RT_s*EC_s + (1|Participant), family=binomial, data=d_incongruent)
+summary(ea1)
+
+# EA2 Explore model including all measured variables of social cognition to see if they account for orthogonal variance.
+ea2 = glmer(Condition ~ 1 + FS_s + EC_s + PT_s + PD_s + SS_s + (1|Participant), family=binomial, data=d)
+summary(ea2)
+
+```
+
+
