@@ -26,12 +26,12 @@ Compare current state of knowledge with previous
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 # (package that helps model converge: optimX)
-library(nloptr)
-library(lme4)
-install.package(nloptr)
-install.packages("nloptr")
-add this argument:
-control=glmerControl(optimizer="nloptwrap2"))
+#library(nloptr)
+#library(lme4)
+#install.package(nloptr)
+#install.packages("nloptr")
+#add this argument:
+#control=glmerControl(optimizer="nloptwrap2"))
 
 getwd()
 locpath= getwd()
@@ -50,6 +50,11 @@ d <- merge(d_all_ii,d_IRI,by="Participant")
 #setwd("~/Desktop/Bachelor/BA_EXP/")
 #write.csv(d, file = "d.csv", row.names=FALSE)
 
+# exclude participant 7 (??)
+d = subset(d, d$Participant!=7)
+#d_s =subset(d, d$Participant!=7)
+#d_all = subset(d, d$Participant!=7)
+
 # variables
 d$Condition = as.factor(d$Condition)
 d$Gender = as.character(d$Gender)
@@ -60,73 +65,53 @@ d$Correctness = as.factor(d$Correctness)
 # ordering factors (e.g. For Condition, it would be good if IT was the baseline, or first category, because then we would know that the model coefficients reflect the probability of being cured (which is what we want to know) rather than the probability of not being cured.”
 d$Condition <- relevel(d$Condition, "IT")
 
-str(d)
-mean(d$Age)
-sd(d$Age)
+#str(d)
+#mean(d$Age)
+#sd(d$Age)
 # removing negative reaction times
 #d$Reaction_time[d$Reaction_time < 0] = 'nan'
+#rt = ggplot(d,aes(Reaction_time))+geom_density()
+#print(rt)
+str(d)
 
-```
-
-
-# visualizing data
-```{r}
-rt = ggplot(d,aes(Reaction_time))+geom_density()
-print(rt)
-
-#log transform
-d$RTlog=log(d$Reaction_time)
-rtlog = ggplot(d,aes(RTlog))+geom_density()
-print(rtlog)
-
-#boxplot(Reaction_time ~ Congruity, main="results for the effect on reaction_time", d)
-# winning or losing rate of acceptance 
-team_cond_rate = data1 %>%
-  group_by(d.player.team == '1') %>% 
-   summarise(accept_rate = sum(d.group.offer_accepted == '1'))
-team_cond_rate
-```
-
-ordering data
-# remove negative RTs
-# scale RTs
-# remove incorrect trials
-# make subset with means for participants 
-```{r}
-d$Reaction_time[d$Reaction_time < 0] = 'nan'
+d$Reaction_time[d$Reaction_time < 0] = NA
 d = d[complete.cases(d),] 
 
-d$Reaction_time = as.numeric(d$Reaction_time)
-class(d$Reaction_time)
-d$RT_s = scale(d$Reaction_time, center = TRUE, scale = TRUE)
-d_s = as.data.frame(d_s)
-
-d$Correctness[d$Correctness == 0] = 'nan'
+d$Correctness[d$Correctness == 0] = NA
 d = d[complete.cases(d),] 
 
-d$Participant
+
+#d$RT_s = scale(d$Reaction_time, center = TRUE, scale = TRUE)
+#d_s = as.data.frame(d_s)
+
 
 d$Item = paste(d$Cue, d$Finger)
 d$Item = as.factor(d$Item)
 
-d$FS_s = scale(d$FS, center = TRUE, scale = TRUE)
-d$EC_s = scale(d$EC, center = TRUE, scale = TRUE)
-d$PT_s = scale(d$PT, center = TRUE, scale = TRUE)
-d$PD_s = scale(d$PD, center = TRUE, scale = TRUE)
-d$SS_s = scale(d$SS, center = TRUE, scale = TRUE)
+#log transform
+d$RTlog=log(d$Reaction_time)
+
+#d$FS_s = scale(d$FS, center = TRUE, scale = TRUE)
+#d$EC_s = scale(d$EC, center = TRUE, scale = TRUE)
+#d$PT_s = scale(d$PT, center = TRUE, scale = TRUE)
+#d$PD_s = scale(d$PD, center = TRUE, scale = TRUE)
+#d$SS_s = scale(d$SS, center = TRUE, scale = TRUE)
 
 #
-d_incongruent <- education[-c(1:9,22:50),-c(1,3:5)]
+d <- subset(d, select = -c(Correctness))
+
 d$Congruity = as.character(d$Congruity)
 class(d$Congruity)
-d_incongruent <- subset(d, d$Congruity == "No", )
+d_incongruent <- subset(d, d$Congruity == "No")
+d_incongruent <- subset(d_incongruent, select = -c(Congruity))
 
 # d_all = dataset with all variables scaled and not, d = original non-scaled variables, d_s = relevant columns are scaled  
-#1990 24
+
 #d_all <- d[,]
 #d <- d[, -c(18,20,21,22,23,24)] 
-d_1 = data.frame(d$Participant, d$V1, d$Condition, d$Congruity, d$Response, d$Correctness, d$Cue, d$Finger, d$Item, d$Gender) # RT_log?
-d_s <- d[, c(5, 10,11,12,13,14,16)] 
+
+d_1 = data.frame(d$Participant, d$V1, d$Condition, d$Congruity, d$Response, d$Cue, d$Finger, d$Item, d$Gender) # RT_log? 9 7 rt
+d_s <- d[, c(5, 9,10,11,12,13,15)] 
 # standardizing the data (centering and scaling)
 d_s = scale(d_s, center = TRUE, scale = TRUE)
 d_s = as.data.frame(d_s)
@@ -142,22 +127,60 @@ names(d_s)[names(d_s) == "d.V1"] <- "V1"
 names(d_s)[names(d_s) == "d.Condition"] <- "Condition"
 names(d_s)[names(d_s) == "d.Congruity"] <- "Congruity"
 names(d_s)[names(d_s) == "d.Response"] <- "Response"
-names(d_s)[names(d_s) == "d.Correctness"] <- "Correctness"
 names(d_s)[names(d_s) == "d.Cue"] <- "Cue"
 names(d_s)[names(d_s) == "d.Finger"] <- "Finger"
 names(d_s)[names(d_s) == "d.Item"] <- "Item"
 names(d_s)[names(d_s) == "d.Gender"] <- "Gender"
 
-# writing to csv file
-write.csv(d_s, file = "d_s.csv", row.names=FALSE)
-d_s <- read.csv("~/Desktop/Bachelor/BA_EXP/d_s.csv", header = TRUE) 
+# make incongruent data that is scaled
+d_s$Congruity = as.character(d_s$Congruity)
+d_incongruent_s <- subset(d_s, d_s$Congruity == "No")
+d_s$Congruity = as.factor(d_s$Congruity)
+str(d_s)
+str(d_incongruent_s)
+d_incongruent_s$Congruity = as.factor(d_incongruent_s$Congruity)
+d_incongruent_s <- subset(d_s, select = -c(Congruity))
 
+
+# writing to csv file
 write.csv(d, file = "d.csv", row.names=FALSE)
 d <- read.csv("~/Desktop/Bachelor/BA_EXP/d.csv", header = TRUE) 
 
-write.csv(d_all, file = "d_all.csv", row.names=FALSE)
-d_all <- read.csv("~/Desktop/Bachelor/BA_EXP/d_all.csv", header =  TRUE)
+write.csv(d_s, file = "d_s.csv", row.names=FALSE)
+d_s <- read.csv("~/Desktop/Bachelor/BA_EXP/d_s.csv", header = TRUE) 
 
+
+write.csv(d_incongruent, file = "d_incongruent.csv", row.names=FALSE)
+d_incongruent <- read.csv("~/Desktop/Bachelor/BA_EXP/d_incongruent.csv", header =  TRUE)
+
+
+write.csv(d_incongruent_s, file = "d_incongruent_s.csv", row.names=FALSE)
+d_incongruent_s <- read.csv("~/Desktop/Bachelor/BA_EXP/d_incongruent_s.csv", header =  TRUE)
+
+
+```
+
+
+
+ordering data
+# remove negative RTs
+# scale RTs
+# remove incorrect trials
+# make subset with means for participants 
+```{r}
+
+#str(d)
+#d$Correctness_fac <-factor(d$Correctness) #change variable into factor
+
+
+#check RT
+#rt = ggplot(d,aes(Reaction_time))+geom_density()
+#print(rt)
+#log transform
+
+#d$RTlog=log(d$Reaction_time)
+#rtlog = ggplot(d,aes(RTlog))+geom_density()
+#print(rtlog)
 ##
 ```
 
@@ -170,7 +193,15 @@ library(dplyr)
 library(plyr)
 d$Congruity = as.factor(d$Congruity)
 # variables should be factors to function in ggplot
+rtlog = ggplot(d,aes(RTlog))+geom_density()
+print(rtlog)
 
+#boxplot(Reaction_time ~ Congruity, main="results for the effect on reaction_time", d)
+# winning or losing rate of acceptance 
+team_cond_rate = data1 %>%
+  group_by(d.player.team == '1') %>% 
+   summarise(accept_rate = sum(d.group.offer_accepted == '1'))
+team_cond_rate
 ```
 
 Hypotheses 
@@ -230,18 +261,7 @@ summary(ea2)
 ```
 
 ```{r}
-str(d)
-d$Correctness_fac <-factor(d$Correctness) #change variable into factor
 
-
-#check RT
-rt = ggplot(d,aes(Reaction_time))+geom_density()
-print(rt)
-#log transform
-
-d$RTlog=log(d$Reaction_time)
-rtlog = ggplot(d,aes(RTlog))+geom_density()
-print(rtlog)
 
 #m = lm(Condition ~ 1 + FS + EC + PT + PD + SS, data = d)
 

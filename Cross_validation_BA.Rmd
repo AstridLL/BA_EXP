@@ -1,0 +1,625 @@
+---
+title: "cross_validation_BA"
+author: "Astrid L."
+date: "30/11/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+getwd()
+locpath= getwd()
+setwd(locpath)
+
+library(pacman)
+p_load(ggplot2, tidyverse, lme4, dplyr, lmerTest, data.table, dtplyr, effects, MuMin, plyr, brms, Rstan, rethinking, metafor, stringr, tidyr,  pastecs, modelr, Metrics, caret, ddalpha)# choose n (y/n?) in ddalpha
+library(pacman)
+p_load(tidyverse, ggplot2, pastecs, dplyr, lmerTest, MuMIn, WRS2)
+# this is the updated data
+d <- read.csv("~/Desktop/Bachelor/BA_EXP/d.csv", header = TRUE) 
+d_s <- read.csv("~/Desktop/Bachelor/BA_EXP/d_s.csv", header = TRUE) 
+d_incongruent <- read.csv("~/Desktop/Bachelor/BA_EXP/d_incongruent.csv", header =  TRUE)
+d_incongruent_s <- read.csv("~/Desktop/Bachelor/BA_EXP/d_incongruent_s.csv", header =  TRUE)
+
+# updating levels
+d$Condition <- relevel(d$Condition, "IT")
+d_s$Condition <- relevel(d_s$Condition, "IT")
+d_incongruent$Condition <- relevel(d_incongruent$Condition, "IT")
+d_incongruent_s$Condition <- relevel(d_incongruent_s$Condition, "IT")
+
+
+```
+
+
+## Hypothesis 1
+```{r}
+# m1 base model vs our model
+m1_base = lmer(RTlog ~ Congruity + (1|Participant) + (1|Item), data = d, REML = FALSE)
+summary(m1_base)
+qqnorm(residuals(m1_base))
+r.squaredGLMM(m1_base)
+modelr::rmse(m1_base, d)
+
+m1_real = lmer(RTlog ~ Condition + Congruity + Condition*Congruity + (1|Participant) + (1|Item), data = d, REML = FALSE)
+summary(m1_real)
+qqnorm(residuals(m1_real))
+r.squaredGLMM(m1_real)
+modelr::rmse(m1_real, d)
+
+# Cross validation
+
+# make a cross validated version of the model
+# (Tips: google the function "createFolds";  loop through each fold, train a model on the other folds and test it on the fold)
+str(d)
+
+folds = createFolds(unique(d$Participant), k = 5)
+rmse_train = NULL
+rmse_test = NULL
+n = 1
+
+for(i in folds){
+  train = subset(d, !(d$Participant %in% i))
+  test = subset(d, d$Participant %in%i)
+
+  m1_base = lmer(RTlog ~ Congruity + (1|Participant) + (1|Item), data = d)
+  
+  newpred = predict(m1_base, newdata = test, allow.new.levels = TRUE)
+  rmse_test[n] = Metrics::rmse(newpred, test$RTlog)
+  rmse_train[n] = Metrics::rmse(train$RTlog, fitted(m1_base))
+  
+  n = n+1
+}
+
+mean(rmse_test)
+# 0.17
+mean(rmse_train)
+# 0.22
+
+
+
+# trying to make a better model that is more predictive:
+
+folds = createFolds(unique(d$Participant), k = 5)
+rmse_train = NULL
+rmse_test = NULL
+n = 1
+
+for(i in folds){
+  train = subset(d, !(d$Participant %in% i))
+  test = subset(d, d$Participant %in%i)
+
+  m1_better = lmer(RTlog ~ Condition + Congruity + Condition*Congruity + (1|Participant) + (1|Item), data = d) 
+  
+  newpred = predict(m1_better, newdata = test, allow.new.levels = TRUE)
+  rmse_test[n] = Metrics::rmse(newpred, test$RTlog)
+  rmse_train[n] = Metrics::rmse(train$RTlog, fitted(m1_better))
+ 
+  n = n+1
+}
+
+mean(rmse_test)
+# 0.17
+mean(rmse_train)
+# 0.23
+
+# Cross validation
+# sorts folds so that no subj is in both training and validation data
+# training data = finding the best possible/least error intercept and slope for the training data
+# test data/validation = the intercept and slope is fixed, so now we calculate the errors 
+# between test data and model from training data (it does not learn from the test data)
+
+
+
+```
+
+## Hypothesis 2
+```{r}
+
+# m2 model
+m2_real = glmer(Condition ~ 1 + FS + EC + PT + PD + (1|Participant), family=binomial, data = d_s)
+summary(m2_real)
+r.squaredGLMM(m2_real)
+modelr::rmse(m2_real, d_s)
+
+# Cross validation
+d_s$Condition = factor(d_s$Condition, levels=c("IT","II"), labels=c(0,1))
+d_s$Condition
+d_s$Condition = as.integer(as.character(d_s$Condition)) #Need to be first transformed to a character 
+str(d_s)
+
+
+folds = createFolds(unique(d_s$Participant), k = 4)
+rmse_train = NULL
+rmse_test = NULL
+n = 1
+
+for(i in folds){
+  train = subset(d_s, !(d$Participant %in% i))
+  test = subset(d_s, d$Participant %in%i)
+
+  m2_real = glmer(Condition ~ 1 + FS + EC + PT + PD + (1|Participant), family=binomial, data = d_sub) 
+  
+  newpred = predict(m2_real, newdata = test, allow.new.levels = TRUE)
+  rmse_test[n] = Metrics::rmse(newpred, test$Condition)
+  rmse_train[n] = Metrics::rmse(train$Condition, fitted(m2_real))
+ 
+  n = n+1
+}
+
+mean(rmse_test)
+# 41.02
+mean(rmse_train)
+# 0.68
+
+# m3 model 
+
+m3_real = glmer(Condition ~ 1 + SS + (1|Participant), family=binomial(), data=d_s)
+summary(m3_real)
+
+folds = createFolds(unique(d_s$Participant), k = 5)
+rmse_train = NULL
+rmse_test = NULL
+n = 1
+
+for(i in folds){
+  train = subset(d_s, !(d$Participant %in% i))
+  test = subset(d_s, d$Participant %in%i)
+
+  m3_real = glmer(Condition ~ 1 + SS + (1|Participant), family=binomial(), data = d_s) 
+  
+  newpred = predict(m3_real, newdata = test, allow.new.levels = TRUE)
+  rmse_test[n] = Metrics::rmse(newpred, test$Condition)
+  rmse_train[n] = Metrics::rmse(train$Condition, fitted(m3_real))
+ 
+  n = n+1
+}
+str(d_s)
+mean(rmse_test)
+# 21.76
+mean(rmse_train)
+# 0.68
+```
+
+
+Exploratory analysis
+```{r}
+# EA 1
+d_incongruent_s$Condition = factor(d_incongruent_s$Condition, levels=c("IT","II"), labels=c(0,1))
+d_incongruent_s$Condition
+d_incongruent_s$Condition = as.integer(as.character(d_incongruent_s$Condition)) #Need to be first transformed to a character 
+d_sub <- d_s[, c(d_s$Participant, d_s$Condition, d_s$FS, d_s$EC, d_s$PT, d_s$PD, d_s$SS)]
+d_sub <- d_s[, c(1, 3, 11, 12, 13, 14, 15)]
+
+str(d_incongruent_s)
+d_sub <- unique(d_sub[ , ])
+ea1 = glmer(Condition ~ 1 + Reaction_time + EC + Reaction_time*EC + (1|Participant), family=binomial, data=d_incongruent_s)
+summary(ea1)
+
+ea1.1 = glmer(Condition ~ 1 + Reaction_time + PT + Reaction_time*PT + (1|Participant), family=binomial, data=d_incongruent_s)
+summary(ea1.1)
+
+#ea1.2 = glmer(Condition ~ 1 + EC + PT + EC*PT + (1|Participant), family=binomial, data=d_s)
+#summary(ea1.2)
+#r.squaredGLMM(ea1.2) # this number explains how much of the variance is explained by the model (in this case 0.35 = 35%)???
+
+# EA2 Explore model including all measured variables of social cognition to see if they account for orthogonal variance.
+ea2 = glmer(Condition ~ 1 + FS + EC + PT + PD + SS + (1|Participant), family=binomial, data=d_s)
+summary(ea2)
+r.squaredGLMM(ea2) 
+cor(d_s$EC, d_s$PT)
+cor.test(d_s$EC, d_s$PT)
+
+```
+
+
+```{r}
+library(cvms)
+install.packages("cvms")
+library(devtools)
+devtools::install_github("LudvigOlsen/groupdata2")
+
+devtools::install_github("LudvigOlsen/cvms")
+
+cv <- groupdata2::fold(data,
+k = 5,
+cat_col = 'diagnose',
+id_col = 'patient_ID') %>%
+cross_validate("score~diagnosis",
+folds_col = '.folds',
+family='gaussian',
+REML = FALSE)
+```
+
+
+```{r}
+#create deataset with mean RTs for congruent and incongruent
+ggplot(d_s, aes(d_s$V1, d_s$Reaction_time, colour = Item)) + geom_point() + geom_smooth(method = "lm") # + labs(x = "Age of child (months)", y = "Child MLU", title = "Child MLU over time (age)") # + geom_jitter() 
+# geom_jitter  It a
+plot(d_s$V1, d_s$Reaction_time)
+
+ggplot(d,aes(Item, Reaction_time)) +
+ geom_bar(stat="summary",fun.y=mean)
+
+```
+
+
+
+
+
+
+
+##### NEW
+Fixed effects should in lmer be continuous or categorical variables
+random effects should in lmer be only categorical
+# Either in this form: (if you believe e.g. subject has an impact on the intercept): 
+# Called random intercept effect
+# (1|subject)
+# Or in this form: (if you believe e.g. subject has an impact on the intercept, AND on the slope of attitude) 
+# Called random slopes effect
+# (1 + attitude|subject)
+
+3. If we have more predictor variables (not just 1 type of different conditions), and you want to see which model you should use
+3a) do an anova(), to compare models (and see which is the best)
+3b) (optional) do an Akaike Information Criteria (AIC) (another way of checking best model)
+3c) (optional) do an Bayesian Information Criteria (BIC) (yet another way of checking best model)
+```{r}
+str(d)
+str(d_s)
+d_s$Participant = as.factor(d_s$Participant)
+d$Participant = as.factor(d$Participant)
+str(d_s)# as my data is crossed / not nested I should NOT use REML = false
+
+
+# Assign models, simplest ones first:
+m0 <- lmer(RTlog ~ 1 + (1|Participant), data=d)
+m1 <- lmer(RTlog ~ Congruity + (1|Participant), data=d)
+m2 <- lmer(RTlog ~ Congruity + Condition + (1|Participant), data=d)
+m3 <- lmer(RTlog ~ Congruity + Condition + (1|Participant) + (1|Item), data=d)
+m4 <- lmer(RTlog ~ Congruity + Condition + Congruity*Condition + (1|Participant) + (1|Item), data=d)
+
+# 2a)
+anova(m0, m1, m1.1, m2, m3, m4)
+# Best model is: the one only with congruity
+
+ma <- lmer(RTlog ~ Congruity + (1|Participant), data=d)
+mb <- lmer(RTlog ~ Congruity + (1|Participant) + (1|Item), data=d)
+anova(ma, mb) 
+# the one with item added seems a little bit better
+
+# 2b) Akaike Information Criteria (optional)
+m_aic <- round(AIC(m0, m1, m2, m3, m4),2)
+m_aic
+Weights(m_aic)
+# Best model is: Lowest AIC and highest weight (m1/congruity only)
+
+# 2c) Bayesian Information Criteria (optional)
+m_bic <- round(BIC(m0, m1, m2, m3, m4),2)
+m_bic
+Weights(m_bic)
+# Best model is: Lowest BIC and highest weight (igen er det m1/congruity)
+
+```
+
+
+4a) Do regression on the best model
+4b) Find P-value
+```{r}
+# 1a) Do the regression model of the best model:
+
+# 1b) Find P-value
+# Create null model (excluding one of the predictor variables):
+m1_null = lmer(RTlog ~ Congruity + (1|Participant) + (1|Item), data = d)
+m1_semi = lmer(RTlog ~ Congruity + Condition + (1|Participant) + (1|Item), data = d)
+m1_real = lmer(RTlog ~ Condition + Congruity + Condition*Congruity + (1|Participant) + (1|Item), data = d)
+
+# Compare the two, and read the p-value from here:
+
+anova(m1_null,m1_semi)
+anova(m1_semi, m1_real)
+anova(m1_null, m1_real)
+
+```
+
+
+5. Find R^2
+```{r}
+r.squaredGLMM(m1_null)
+r.squaredGLMM(m1_semi)
+r.squaredGLMM(m1_real)
+summary(m1_semi)
+# Use R2m, not R2c
+
+```
+
+
+6. Check for the ANOVA assumptions
+```{r}
+# TO CHECK AFTER DOING ANOVA:
+
+# 6.a) Absence of collinearity - the predictors shouldn't explain the same variance in the data (we don't want multicollinearity)
+# Checked for, in the regression model under:
+# "Correlation of Fixed Effects", in the summary of the lmer model.
+# If correlation between 2 predictor variables are < .8 then do nothing
+# If correlation between 2 predictor variables are > .8, you have a problem, and should remove one of the predictor variables
+
+
+# 6.b Normality of residuals (not the dependent variable, but the residuals - this is checked AFTER running the lm
+# Check for, with: 
+qqnorm(residuals(politeness.model))
+
+
+```
+
+
+7. Interpretation:
+```{r}
+# A)
+# Random effects:
+# 1. Std.Dev. - variability in dependent measure, due to effects from each random effect. And Residual being variability due to something else than these
+
+# Fixed effects:
+# 1. Estimate (β, beta coefficient) - slope for categorical effect. (How much you go up/down y-axis, if you go from one category to another)
+# The category it moves to (AND NOT FROM), will be named on the left.
+# 2. Intercept - the mean of one of the categories, in the condition it moved FROM (see line above). 
+# 3. Standard Error (Seen just right of "Estimate")
+# 4. T-value (Seen just 2 steps right of "Standard Error"")
+
+# Anova model comparison:
+# 1. P-value
+# Seen to the far right, under "Pr(>Chisq)"
+# 2. Degrees of freedom
+# Seen left of P-value, under "Chisq"
+
+# R^2
+# In percentage; How much of the variance in the dependent variable, is explained by the fixed effects (and only the fixed effect)
+
+
+```
+
+
+
+8. Write it in APA style:
+```{r}
+# Politeness context significantly modulated pitch, β = 19.70 (SE = 5.584), t = -3.532, p < .0001, r^2 = 0909098
+
+# Where
+# β = [beta coefficient]          (see fixed effects, from summary)
+# SE = [se of beta],              (see fixed effects, from summary)
+# t = [t-value]                   (see fixed effects, from summary)
+# p = [p-value]                   (see anova model comparison)
+# r^2 = [r^2]                     (see "find R^2"")
+
+
+```
+
+
+
+
+Binary, Logistic Regression (a regression with a categorical dependent with only two categories)
+
+# Find which of the two is the baseline category (it's the one with the lowest number, check both lists, to see congruency)
+```{r}
+str(d_s) 
+d_s <- fastDummies::dummy_cols(d_s, select_columns = "Condition")
+#install.packages("fastDummies")
+#library(fastDummies)
+d_s$Condition_II = as.numeric(d_s$Condition_II)
+d_s$Condition_II = as.factor(d_s$Condition_II)
+str(d_s)
+```
+
+
+2. If we have more predictor variables (not just 1 type of different conditions), and you want to see which model you should use in the binary logistic regression
+3a) do an anova(), to compare models (and see which is the best)
+3b) (optional) do an Akaike Information Criteria (AIC) (another way of checking best model)
+3c) (optional) do an Bayesian Information Criteria (BIC) (yet another way of checking best model)
+```{r}
+# Assign models (all of them have to be either, glm, or glmer, you can't compare the two across):
+# or with glmer (for the null model, you can still include the random effects)
+m0a <- glmer(Condition_II ~ 1 + (1|Participant) + (1|Item), family = binomial(), data = d_s)
+m1a <- glmer(Condition_II ~ 1 + EC + (1|Participant) + (1|Item), family = binomial(), data = d_s)
+m2a <- glmer(Condition_II ~ 1 + EC + PT + (1|Participant) + (1|Item), family = binomial(), data = d_s)
+m3a <-glmer(Condition_II ~ 1 + PT + FS + PD + (1|Participant) + (1|Item), family = binomial(), data = d_s)
+m4a <-glmer(Condition_II ~ 1 + EC + PT + FS + PD + (1|Participant) + (1|Item), family = binomial(), data = d_s)
+cor(d_s$EC, d_s$FS)
+summary(m3a)
+plot(d$EC, d$PT)
+subset1 = subset(d_s, select=c("EC", "PT", "FS", "PD"))
+pairs(subset1)
+# 2aa) - if using glm models
+anova(m0, m1, m2, test = "Chisq")
+# Best model is: The furthermost bottom one, with dots (***). Remember the number of the left, is not the same as the Model number.
+
+# 2ab) - if using glmer (excluding test = "Chisq")
+anova(m0a, m1a, m2a, m3a, m4a)
+
+
+
+# 2b) Akaike Information Criteria
+m_aic <- round(AIC(m0, m1, m2),2)
+m_aic
+Weights(m_aic)
+# Best model is: Lowest AIC and highest weight
+
+# 2c) Bayesian Information Criteria
+m_bic <- round(BIC(m0, m1, m2),2)
+m_bic
+Weights(m_bic)
+# Best model is: Lowest BIC and highest weight
+
+```
+
+
+3. Do the glm or glmer (which would be including random effects - either intercepts, or slope and intercepts):
+```{r}
+# Choose either A, or B, depending on whether or not you are having random effects included
+
+
+# A) Make and show the model (Here not, including random effects)
+# With this glm (not glmer); it assumes indepedence - if your datapoints aren't independent, you can't do this test.
+model1 <- glm(formula = is_jagged ~ consonant, family = binomial(), data = kiki_train)
+summary(model1)
+
+
+# B) Make and show model (Here, including random effects) 
+# adding random slopes and/or random intercepts, using General linear mixed effect model
+model2 <- glmer(formula = is_jagged ~ consonant + (1|id), kiki_train, family = binomial)
+summary(model2)
+
+```
+
+ 
+4. Finding and interpreting beta, p-value, degrees of freedom, etc.
+```{r}
+# 4a)
+# Getting understandable information out of beta/slope of the predictor variable:
+
+
+# Getting log-likelihood (intercept + 1 * beta)
+-1.6621 + 1 * 2.6272
+
+# Use inv.logit on the log-likelihood, to get the likelihood.
+inv.logit(0.9651)
+# 0.7241417
+
+# In other words: When we move from consonantB, to consonantK: this is the chance (72.4%) that they will change their answer from the baseline
+
+# So there's a 72.4% chance, that a participant will choose "jagged", if they have the consonantK
+# This of course, also means, that the chance the a participant will choose "not jagged", if consonantK, is 100-72.4 = 27.6
+
+
+
+
+
+
+# 4b)
+# Getting the odds ratio (for the APA format)
+
+
+# Run exp() on the beta
+exp(2.6272)
+# is equal to = odds ratio
+
+# interpretation:
+# odds ratio value > 1     
+# ->    as predictor increases (go out the x-axis), the odds of a change from the baseline (moving on the y-axis), increases  
+
+# odds ratio value < 1     
+# ->    as predictor increases (go out the x-axis), the odds of a change from the baseline (moving on the y-axis), decreases
+
+
+
+
+
+
+
+
+# 4c) 
+# Getting and interpreting p-value, chisquared, and df's, for the APA-format
+
+ # When working with glmer (excluding "test = "ChisQ"):
+anova(m0a, model2)
+
+# Comparing null model with model2, "Deviance" is ChiSquared, and df, are the 2 df's, and p value on the far right.
+
+
+#When working with glm:
+anova(model1, test = "Chisq")
+
+# Comparing null model with model1, "Deviance" is ChiSquared, and df, are the 2 df's, and p value on the far right.
+
+
+
+
+
+
+
+# 4d) Fixed effects (read through the summary of your best model)
+summary(model1)
+
+summary(model2)
+
+
+```
+
+
+5. (Optional -> You can skip, if you aren't looking to predict new samples) 
+If you want to predict an unknown category, from a participant:
+```{r}
+# (The predict() function allows you to extract the individual predictions made by your model. To convert it into probabilties (which we can actually understand - as opposed to those weird logodds), use the inv.logit() function. Add a "Predictions probability" column to your training dataframe, in which the individual model prediction probabilities are scored.))
+
+
+
+
+# 5a)
+# Making a new column, with the percentages of having a jagged object
+kiki_train$predictions_perc_is_jagged = inv.logit(predict(model1))
+
+
+
+# Now that the predicted probabilites are added, we need to decide on what counts as a classified aphasia patient and what counts as a classified control. Normally, such decision are heavily domain dependant, but in this case i suggest we make the threshold at 50%. 
+# That is:
+# if the predicted probability is above 0.5 => the participant is jagged => label "1"
+# if the predicted probability is below 0.5 => the participant is not jagged => label "0"
+
+
+
+
+
+# 5b)
+# Assigning predicted conditions based on their probabilities, and putting it into a column:
+kiki_train$predictions <- ifelse(kiki_train$predictions_perc_is_jagged >= 0.50, "0", "1")
+
+
+# 5c)
+# Predicting unknown cases, from the prediction percentages
+
+# First, you have to have your test dataframe - load it (I just make it in this example), if you haven't already (with unknown categories/not known dependent variable)
+kiki_test <- kiki_train
+str(kiki_test)
+kiki_test <- select(kiki_test, id, stim_right, stim_left, word, consonant, vowel, size)
+kiki_test <- subset(kiki_test, id == 1 | id == 2 | id == 3)
+
+
+
+# Then, make predictions in percentage from the best model you created earlier, and put it into a column in the test dataframe
+kiki_test$model1_predictions = inv.logit(predict(model1, kiki_test, na.action = na.omit, allow.new.levels = T))
+
+# Creating a new column, assigning each a category
+kiki_test$predictions[kiki_test$model1_predictions<0.5]=0
+kiki_test$predictions[kiki_test$model1_predictions>=0.5]= 1
+
+# Seeing which is where (where 0 is belonging to the baseline, and 1 is not)
+# Look at the new column, called "kiki_test$predicitons""
+View(kiki_test)
+
+```
+
+
+
+6. Visualise the data (Plotting the data)
+```{r}
+# Jitterplotting if you have a predictor variable with 2 categories
+ggplot(kiki_train, aes(shape, size, color = word, shape = word)) +
+  geom_jitter(width =.4, height = .4)
+
+
+```
+
+7. APA-format report
+```{r}
+# Reporting the overall model:
+# “The model significantly predicted the outcome: X^2(1, 119) = 9.93, p = .002”
+
+
+# Reporting contributions of the individual estimates
+# “The eel intervention had a significant positive impact on constipation: b = 1.23 (SE = 0.40), z = 3.07, p < .002, odds ratio = 3.42”
+# (If you have multiple predictor variables, report odds ratio for each, and also the above values^)
+
+
+```
+
